@@ -7,6 +7,7 @@ import { logout } from '@/lib/auth';
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/menu', label: 'Menu' },
+  { href: '/staf', label: 'Staf' },
   { href: '/riwayat', label: 'Riwayat' },
 ];
 

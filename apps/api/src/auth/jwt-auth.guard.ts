@@ -14,7 +14,9 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     const token = authHeader.slice('Bearer '.length);
-    this.authService.verify(token); // lempar UnauthorizedException kalau invalid
+    // BARU — payload ditempel ke request supaya controller (kalau perlu)
+    // bisa tahu siapa yang login, bukan cuma valid/tidak.
+    request.user = this.authService.verify(token);
     return true;
   }
 }

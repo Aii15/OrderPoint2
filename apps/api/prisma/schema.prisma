@@ -32,8 +32,16 @@ model Order {
   midtransOrderId String        @unique
   paymentStatus   PaymentStatus @default(PENDING)
   orderStatus     OrderStatus   @default(NEW)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+
+  // BARU — staf kasir terakhir yang mengubah status order ini. Snapshot nama
+  // (bukan cuma relasi id), pola sama seperti Order.items menyimpan snapshot
+  // menu, bukan referensi ke MenuItem — supaya riwayat tetap utuh walau staf
+  // dihapus/dinonaktifkan lewat apps/admin nanti (lihat Bagian 7 README).
+  servedByStaffId   String?
+  servedByStaffName String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model QueueCounter {
@@ -59,4 +67,18 @@ model MenuItem {
   updatedAt      DateTime @updatedAt
 
   @@index([category])
+}
+
+// BARU — akun staf kasir untuk auth per-orang (beda dari PIN tunggal admin
+// lewat env var). PIN disimpan plaintext untuk MVP, konsisten dengan
+// ADMIN_PIN yang juga plaintext — cukup untuk mencatat siapa yang login,
+// bukan sistem keamanan tingkat produksi. `name` unik supaya bisa dipakai
+// sebagai target upsert seed dan supaya dropdown login tidak ambigu.
+model Staff {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  pin       String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

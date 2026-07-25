@@ -35,18 +35,97 @@ const URGENCY_STYLE = {
   critical: { border: 'border-l-red-500', text: 'text-red-400', glow: 'animate-pulse' },
 } as const;
 
+// BARU — overlay detail lengkap, dibuka lewat tap di badan tiket (bukan
+// tombol aksi). Tema tetap dark/high-contrast konsisten dengan KDS.
+function OrderDetailModal({ order, onClose }: { order: Order; onClose: () => void }) {
+  const items = parseOrderItems(order);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md border border-zinc-800 bg-zinc-900 p-8"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-1 flex items-center justify-between">
+          <h2 className="font-mono text-4xl font-bold text-white">{order.queueNumber}</h2>
+          <button
+            onClick={onClose}
+            className="font-mono text-xs uppercase tracking-widest text-zinc-500 hover:text-zinc-300"
+          >
+            Tutup
+          </button>
+        </div>
+        <p className="mb-6 font-mono text-xs uppercase tracking-widest text-zinc-500">
+          {order.customerName}
+        </p>
+
+        <div className="mb-4 space-y-2 border-y border-zinc-800 py-4">
+          {items.map((item, i) => (
+            <div key={i} className="flex justify-between font-mono text-sm text-zinc-300">
+              <span>
+                {item.quantity}× {item.name}
+              </span>
+              <span>Rp {new Intl.NumberFormat('id-ID').format(item.price * item.quantity)}</span>
+            </div>
+          ))}
+          {items.length === 0 && (
+            <p className="font-mono text-xs text-zinc-600">Data item tidak bisa dibaca.</p>
+          )}
+        </div>
+
+        <div className="mb-6 space-y-1 font-mono text-sm">
+          <div className="flex justify-between text-zinc-500">
+            <span>Subtotal</span>
+            <span>Rp {new Intl.NumberFormat('id-ID').format(order.subtotal)}</span>
+          </div>
+          <div className="flex justify-between text-zinc-500">
+            <span>Pajak</span>
+            <span>Rp {new Intl.NumberFormat('id-ID').format(order.tax)}</span>
+          </div>
+          <div className="flex justify-between font-bold text-white">
+            <span>Total</span>
+            <span>Rp {new Intl.NumberFormat('id-ID').format(order.total)}</span>
+          </div>
+        </div>
+
+        <dl className="space-y-1 font-mono text-xs text-zinc-500">
+          <div className="flex justify-between">
+            <dt>Dibuat</dt>
+            <dd className="text-zinc-400">{new Date(order.createdAt).toLocaleString('id-ID')}</dd>
+          </div>
+          <div className="flex justify-between">
+            <dt>ID Order</dt>
+            <dd className="text-zinc-400">{order.midtransOrderId}</dd>
+          </div>
+          {order.servedByStaffName && (
+            <div className="flex justify-between">
+              <dt>Kasir</dt>
+              <dd className="text-zinc-400">{order.servedByStaffName}</dd>
+            </div>
+          )}
+        </dl>
+      </div>
+    </div>
+  );
+}
+
 function TicketCard({
   order,
   actionLabel,
   actionColor,
   isNew,
   onAction,
+  onOpenDetail,
 }: {
   order: Order;
   actionLabel: string;
   actionColor: 'amber' | 'cyan';
   isNew: boolean;
   onAction: () => void;
+  onOpenDetail: () => void; // BARU
 }) {
   const [elapsed, setElapsed] = useState(() => getElapsedSeconds(order.createdAt));
 
@@ -62,7 +141,8 @@ function TicketCard({
 
   return (
     <div
-      className={`border-l-4 bg-zinc-900 transition-shadow duration-700 ${style.border} ${
+      onClick={onOpenDetail}
+      className={`cursor-pointer border-l-4 bg-zinc-900 transition-shadow duration-700 ${style.border} ${
         urgency === 'critical' ? 'ring-1 ring-red-500/30' : ''
       } ${isNew ? 'ring-2 ring-amber-400/70 shadow-[0_0_24px_rgba(245,158,11,0.35)]' : ''}`}
     >
@@ -97,7 +177,10 @@ function TicketCard({
       </div>
 
       <button
-        onClick={onAction}
+        onClick={(e) => {
+          e.stopPropagation(); // BARU — supaya tombol aksi tidak ikut buka detail
+          onAction();
+        }}
         className={`w-full py-4 text-sm font-bold uppercase tracking-widest text-zinc-950 transition active:brightness-90 active:scale-[0.98] ${
           actionColor === 'amber' ? 'bg-amber-500' : 'bg-cyan-400'
         }`}
@@ -114,6 +197,7 @@ export default function KdsPage() {
   const [clock, setClock] = useState('');
   const [muted, setMuted] = useState(false);
   const [flashIds, setFlashIds] = useState<Set<string>>(new Set());
+  const [detailOrder, setDetailOrder] = useState<Order | null>(null); // BARU
 
   const knownIdsRef = useRef<Set<string>>(new Set());
   const isFirstLoadRef = useRef(true);
@@ -279,6 +363,7 @@ export default function KdsPage() {
                   actionColor="amber"
                   isNew={flashIds.has(order.id)}
                   onAction={() => handleAdvance(order, 'IN_PROGRESS')}
+                  onOpenDetail={() => setDetailOrder(order)}
                 />
               ))}
             </div>
@@ -306,12 +391,17 @@ export default function KdsPage() {
                   actionColor="cyan"
                   isNew={flashIds.has(order.id)}
                   onAction={() => handleAdvance(order, 'READY')}
+                  onOpenDetail={() => setDetailOrder(order)}
                 />
               ))}
             </div>
           )}
         </section>
       </div>
+
+      {detailOrder && (
+        <OrderDetailModal order={detailOrder} onClose={() => setDetailOrder(null)} />
+      )}
     </main>
   );
 }

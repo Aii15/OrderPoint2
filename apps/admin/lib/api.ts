@@ -95,6 +95,8 @@ export interface Order {
   midtransOrderId: string;
   paymentStatus: PaymentStatus;
   orderStatus: OrderStatus;
+  servedByStaffId: string | null;   // BARU
+  servedByStaffName: string | null; // BARU
   createdAt: string;
   updatedAt: string;
 }
@@ -164,3 +166,52 @@ export const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = {
   PAID: 'Sudah Dibayar',
   EXPIRED: 'Kedaluwarsa',
 };
+
+// --- BARU — kelola staf kasir ---
+
+export interface StaffMember {
+  id: string;
+  name: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export async function fetchStaffList(): Promise<StaffMember[]> {
+  const response = await fetch(`${API_BASE_URL}/api/staff`, {
+    cache: 'no-store',
+    headers: { ...authHeaders() },
+  });
+  if (!response.ok) throw new Error('Gagal mengambil daftar staf');
+  return response.json();
+}
+
+export async function createStaff(input: { name: string; pin: string }): Promise<StaffMember> {
+  const response = await fetch(`${API_BASE_URL}/api/staff`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error('Gagal menambah staf (cek apakah nama sudah dipakai)');
+  return response.json();
+}
+
+export async function updateStaff(
+  id: string,
+  input: Partial<{ name: string; pin: string; active: boolean }>,
+): Promise<StaffMember> {
+  const response = await fetch(`${API_BASE_URL}/api/staff/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error('Gagal memperbarui staf');
+  return response.json();
+}
+
+export async function deleteStaff(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/staff/${id}`, {
+    method: 'DELETE',
+    headers: { ...authHeaders() },
+  });
+  if (!response.ok) throw new Error('Gagal menghapus staf');
+}

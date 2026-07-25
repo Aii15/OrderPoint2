@@ -121,6 +121,10 @@ export default function RiwayatDetailPage() {
             </dd>
           </div>
           <div>
+            <dt className="text-ink/50">Dilayani oleh</dt>
+            <dd className="font-medium text-ink">{order.servedByStaffName ?? '—'}</dd>
+          </div>
+          <div>
             <dt className="text-ink/50">Terakhir diperbarui</dt>
             <dd className="font-medium text-ink">
               {new Date(order.updatedAt).toLocaleString('id-ID')}

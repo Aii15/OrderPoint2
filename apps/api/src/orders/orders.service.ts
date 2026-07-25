@@ -74,13 +74,25 @@ export class OrdersService {
     });
   }
 
-  async updateOrderStatus(id: string, orderStatus: OrderStatus) {
+  async updateOrderStatus(
+    id: string,
+    orderStatus: OrderStatus,
+    servedBy?: { staffId: string; staffName: string },
+  ) {
     const order = await this.prisma.order.findUnique({ where: { id } });
     if (!order) throw new NotFoundException('Order tidak ditemukan');
 
     return this.prisma.order.update({
       where: { id },
-      data: { orderStatus },
+      data: {
+        orderStatus,
+        // Hanya ditulis kalau ada staf kasir yang login (request dari
+        // apps/kds tidak membawa token, jadi field ini dibiarkan seperti
+        // sebelumnya, tidak ditimpa jadi kosong).
+        ...(servedBy
+          ? { servedByStaffId: servedBy.staffId, servedByStaffName: servedBy.staffName }
+          : {}),
+      },
     });
   }
 
@@ -96,13 +108,20 @@ export class OrdersService {
   }
 
   // Pesanan yang gagal/kedaluwarsa bayar, untuk rekonsiliasi kasir
+  // Pesanan gagal/kedaluwarsa bayar HARI INI — dipakai tab "Gagal Bayar" di
+  // apps/cashier maupun StatCard "Gagal Bayar" di dashboard apps/admin.
+  // Sengaja di-scope harian, sama seperti listCompletedToday, supaya semua
+  // angka ringkasan konsisten "hari ini" dan tidak nyangkut order lama.
   async listFailedOrders() {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
     return this.prisma.order.findMany({
       where: {
         paymentStatus: { in: [PaymentStatus.EXPIRED, PaymentStatus.PENDING] },
+        createdAt: { gte: startOfDay },
       },
       orderBy: { createdAt: 'desc' },
-      take: 50,
     });
   }
 
