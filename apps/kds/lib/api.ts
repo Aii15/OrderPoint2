@@ -20,6 +20,8 @@ export interface Order {
   midtransOrderId: string;
   paymentStatus: PaymentStatus;
   orderStatus: OrderStatus;
+  servedByStaffId: string | null;   // BARU
+  servedByStaffName: string | null; // BARU
   createdAt: string;
   updatedAt: string;
 }

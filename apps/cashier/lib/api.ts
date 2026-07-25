@@ -1,3 +1,5 @@
+import { authHeaders } from './auth';
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3001';
 
 export type OrderStatus = 'NEW' | 'IN_PROGRESS' | 'READY' | 'COMPLETED' | 'CANCELLED';
@@ -20,6 +22,10 @@ export interface Order {
   midtransOrderId: string;
   paymentStatus: PaymentStatus;
   orderStatus: OrderStatus;
+  // BARU — staf kasir terakhir yang menangani order ini (null kalau belum
+  // pernah ditangani lewat aksi berbasis login).
+  servedByStaffId: string | null;
+  servedByStaffName: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -50,10 +56,12 @@ export async function fetchCompletedToday(): Promise<Order[]> {
   return response.json();
 }
 
+// BARU — sekarang mengirim Authorization header staf yang login (kalau ada),
+// supaya apps/api bisa mencatat siapa yang menangani order ini.
 export async function updateOrderStatus(id: string, orderStatus: OrderStatus): Promise<Order> {
   const response = await fetch(`${API_BASE_URL}/api/orders/${id}/status`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify({ orderStatus }),
   });
   if (!response.ok) throw new Error('Gagal update status pesanan');
@@ -74,4 +82,10 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
   READY: 'Siap Diambil',
   COMPLETED: 'Selesai',
   CANCELLED: 'Dibatalkan',
+};
+
+export const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = {
+  PENDING: 'Menunggu Bayar',
+  PAID: 'Sudah Dibayar',
+  EXPIRED: 'Kedaluwarsa',
 };

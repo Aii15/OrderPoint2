@@ -9,4 +9,10 @@ export class AuthController {
   login(@Body('pin') pin: string) {
     return this.authService.login(pin);
   }
+
+  // BARU — login staf kasir
+  @Post('staff-login')
+  loginStaff(@Body('staffId') staffId: string, @Body('pin') pin: string) {
+    return this.authService.loginStaff(staffId, pin);
+  }
 }

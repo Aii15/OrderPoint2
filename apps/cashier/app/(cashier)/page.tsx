@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Order,
   OrderStatus,
@@ -11,7 +12,9 @@ import {
   parseOrderItems,
   NEXT_STATUS,
   STATUS_LABEL,
+  PAYMENT_STATUS_LABEL,
 } from '@/lib/api';
+import { getStaffName, logout } from '@/lib/auth';
 import { playNotifySound } from '@/lib/useNotifySound';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { Toast } from '@/components/Toast';
@@ -58,6 +61,7 @@ const PAYMENT_LABEL: Record<string, string> = {
 };
 
 export default function CashierPage() {
+  const router = useRouter();
   const [viewMode, setViewMode] = useState<ViewMode>('active');
   const [orders, setOrders] = useState<Order[]>([]);
   const [activeTab, setActiveTab] = useState<OrderStatus | 'ALL'>('ALL');
@@ -72,10 +76,15 @@ export default function CashierPage() {
   const [, forceTick] = useState(0);
 
   const knownIdsRef = useRef<Set<string>>(new Set());
-  // Menyimpan status terakhir tiap order yang diketahui, untuk mendeteksi
-  // transisi status (misal IN_PROGRESS -> READY) walau ID-nya sudah dikenal.
   const lastStatusRef = useRef<Map<string, OrderStatus>>(new Map());
   const isFirstLoadRef = useRef(true);
+
+  const staffName = getStaffName();
+
+  const handleLogout = () => {
+    logout();
+    router.push('/login');
+  };
 
   const loadOrders = async (mode: ViewMode) => {
     try {
@@ -93,8 +102,7 @@ export default function CashierPage() {
           const newOnes = data.filter((o) => !knownIdsRef.current.has(o.id));
 
           const justBecameReady = data.filter(
-            (o) =>
-              o.orderStatus === 'READY' && lastStatusRef.current.get(o.id) !== 'READY',
+            (o) => o.orderStatus === 'READY' && lastStatusRef.current.get(o.id) !== 'READY',
           );
 
           if (newOnes.length > 0) {
@@ -105,10 +113,7 @@ export default function CashierPage() {
             playNotifySound();
             const names = justBecameReady.map((o) => o.queueNumber).join(', ');
             setToast({
-              message:
-                justBecameReady.length === 1
-                  ? `Pesanan ${names} siap diambil!`
-                  : `Pesanan ${names} siap diambil!`,
+              message: `Pesanan ${names} siap diambil!`,
               variant: 'success',
             });
             setReadyAlertIds((prev) => {
@@ -233,6 +238,17 @@ export default function CashierPage() {
             />
             {connectionError ? 'Terputus dari server' : `${orders.length} pesanan`}
           </span>
+
+          {/* BARU — badge staf yang login + tombol keluar */}
+          <div className={`flex items-center gap-3 rounded-full bg-white px-5 py-2 ${SOFT_SHADOW}`}>
+            <span className="text-sm font-semibold text-ink">{staffName ?? 'Staf'}</span>
+            <button
+              onClick={handleLogout}
+              className="text-xs font-semibold text-red-500 hover:underline"
+            >
+              Keluar
+            </button>
+          </div>
         </div>
       </header>
 
@@ -344,6 +360,12 @@ export default function CashierPage() {
                     {overdue && <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
                     {formatWaitTime(order.createdAt)}
                   </p>
+                  {/* BARU — badge kecil siapa yang menangani, kalau sudah ada */}
+                  {order.servedByStaffName && (
+                    <p className="mt-1 text-xs text-ink/40">
+                      Ditangani: <span className="font-medium text-ink/60">{order.servedByStaffName}</span>
+                    </p>
+                  )}
                   <p className="mt-4 font-serif text-2xl text-latte">
                     IDR {formatIDR(order.total)}
                   </p>
@@ -372,7 +394,19 @@ export default function CashierPage() {
               </span>
             </div>
             <p className="mb-1 text-sm text-ink/50">{formatWaitTime(selectedOrder.createdAt)}</p>
-            <p className="mb-6 text-[15px] text-ink/70">Atas nama: {selectedOrder.customerName}</p>
+            <p className="text-[15px] text-ink/70">Atas nama: {selectedOrder.customerName}</p>
+
+            {/* BARU — status pembayaran + waktu pasti + siapa yang menangani */}
+            <div className="mb-6 mt-2 flex flex-wrap gap-2">
+              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${STATUS_BADGE_STYLE[selectedOrder.paymentStatus]}`}>
+                {PAYMENT_STATUS_LABEL[selectedOrder.paymentStatus]}
+              </span>
+              {selectedOrder.servedByStaffName && (
+                <span className="rounded-full bg-cream px-3 py-1 text-xs font-semibold text-ink/70">
+                  Ditangani: {selectedOrder.servedByStaffName}
+                </span>
+              )}
+            </div>
 
             <div className={`mb-6 space-y-3 rounded-2xl bg-cream/60 p-5 ${INSET_SHADOW}`}>
               {parseOrderItems(selectedOrder).map((item, i) => (
@@ -387,12 +421,29 @@ export default function CashierPage() {
               ))}
             </div>
 
-            <div className="mb-8 flex justify-between border-t border-latte/10 pt-4">
-              <span className="text-ink/70">Total</span>
-              <span className="font-serif text-2xl font-bold text-latte">
-                IDR {formatIDR(selectedOrder.total)}
-              </span>
+            {/* BARU — rincian subtotal & pajak, bukan cuma total */}
+            <div className="mb-8 space-y-1 border-t border-latte/10 pt-4 text-sm">
+              <div className="flex justify-between text-ink/60">
+                <span>Subtotal</span>
+                <span>IDR {formatIDR(selectedOrder.subtotal)}</span>
+              </div>
+              <div className="flex justify-between text-ink/60">
+                <span>Pajak</span>
+                <span>IDR {formatIDR(selectedOrder.tax)}</span>
+              </div>
+              <div className="flex justify-between pt-1">
+                <span className="text-ink/70">Total</span>
+                <span className="font-serif text-2xl font-bold text-latte">
+                  IDR {formatIDR(selectedOrder.total)}
+                </span>
+              </div>
             </div>
+
+            {/* BARU — waktu pasti + ID order, kecil di bawah */}
+            <p className="mb-6 text-xs text-ink/30">
+              Dibuat {new Date(selectedOrder.createdAt).toLocaleString('id-ID')} · ID{' '}
+              {selectedOrder.midtransOrderId}
+            </p>
 
             {viewMode === 'active' && (
               <div className="flex gap-3">

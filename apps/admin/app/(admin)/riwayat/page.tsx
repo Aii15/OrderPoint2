@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Order, PAYMENT_STATUS_LABEL, STATUS_LABEL, fetchOrderHistory } from '@/lib/api';
+import { DatePicker } from '@/components/DatePicker';
 
 function todayDateInputValue(): string {
   const now = new Date();
@@ -47,13 +48,7 @@ export default function RiwayatPage() {
     <main className="p-10">
       <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <h1 className="font-serif text-3xl text-ink">Riwayat Pesanan</h1>
-        <input
-          type="date"
-          value={date}
-          max={todayDateInputValue()}
-          onChange={(e) => setDate(e.target.value)}
-          className="rounded-2xl bg-white px-5 py-3 text-sm text-ink shadow-[8px_8px_18px_rgba(122,74,38,0.15),-8px_-8px_18px_rgba(255,255,255,0.9)] outline-none"
-        />
+        <DatePicker value={date} onChange={setDate} max={todayDateInputValue()} />
       </div>
 
       {error && (
@@ -83,6 +78,7 @@ export default function RiwayatPage() {
                 <th className="px-6 py-4 font-semibold">Total</th>
                 <th className="px-6 py-4 font-semibold">Status</th>
                 <th className="px-6 py-4 font-semibold">Pembayaran</th>
+                <th className="px-6 py-4 font-semibold">Dilayani</th>
                 <th className="px-6 py-4 font-semibold">Waktu</th>
               </tr>
             </thead>
@@ -107,6 +103,7 @@ export default function RiwayatPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-ink/70">{PAYMENT_STATUS_LABEL[order.paymentStatus]}</td>
+                  <td className="px-6 py-4 text-ink/70">{order.servedByStaffName ?? '—'}</td>
                   <td className="px-6 py-4 text-ink/50">
                     {new Date(order.createdAt).toLocaleTimeString('id-ID', {
                       hour: '2-digit',
@@ -117,7 +114,7 @@ export default function RiwayatPage() {
               ))}
               {orders.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-10 text-center text-ink/40">
+                  <td colSpan={7} className="px-6 py-10 text-center text-ink/40">
                     Tidak ada pesanan pada tanggal ini.
                   </td>
                 </tr>

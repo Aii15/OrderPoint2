@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { CATEGORIES, Category, MenuItem, MenuItemInput } from '@/lib/api';
+import { Select } from './Select';
 
 interface MenuItemFormProps {
   title: string;
@@ -289,17 +290,11 @@ export function MenuItemForm({ title, initial, onSubmit, onCancel }: MenuItemFor
                   </div>
                   <div>
                     <label className="mb-1 block text-sm font-bold text-ink">Kategori</label>
-                    <select
+                    <Select
                       value={category}
-                      onChange={(e) => setCategory(e.target.value as Category)}
-                      className="w-full rounded-xl bg-cream px-4 py-2 text-sm text-ink outline-none"
-                    >
-                      {CATEGORIES.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(v) => setCategory(v as Category)}
+                      options={CATEGORIES.map((c) => ({ value: c, label: c }))}
+                    />
                   </div>
                 </div>
               </div>

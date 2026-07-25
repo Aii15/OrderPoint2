@@ -205,6 +205,14 @@ const MENU_SEED = [
   },
 ];
 
+// BARU — akun staf kasir contoh, aman dijalankan ulang (idempotent, upsert
+// by name). Ganti nama/PIN ini sesuai kebutuhan, atau tambah staf baru lewat
+// apps/admin → Staf setelah login pertama kali.
+const STAFF_SEED = [
+  { name: 'Budi', pin: '1111' },
+  { name: 'Sari', pin: '2222' },
+];
+
 async function main() {
   for (const item of MENU_SEED) {
     await prisma.menuItem.upsert({
@@ -213,7 +221,19 @@ async function main() {
       create: item,
     });
   }
-  console.log(`Seed selesai — ${MENU_SEED.length} menu item ditulis ke database.`);
+
+  // BARU — seed akun staf kasir contoh
+  for (const staff of STAFF_SEED) {
+    await prisma.staff.upsert({
+      where: { name: staff.name },
+      update: { pin: staff.pin },
+      create: staff,
+    });
+  }
+
+  console.log(
+    `Seed selesai — ${MENU_SEED.length} menu item, ${STAFF_SEED.length} staf ditulis ke database.`,
+  );
 }
 
 main()
