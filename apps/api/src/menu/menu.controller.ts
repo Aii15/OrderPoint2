@@ -1,6 +1,19 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { MenuService } from './menu.service';
+import { MenuService, UploadedMulterFile } from './menu.service';
 import { CreateMenuItemDto } from './dto/create-menu-item.dto';
 import { UpdateMenuItemDto } from './dto/update-menu-item.dto';
 
@@ -43,5 +56,19 @@ export class MenuController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.menuService.remove(id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/image')
+  @UseInterceptors(
+    FileInterceptor('image', {
+      limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
+    }),
+  )
+  uploadImage(@Param('id') id: string, @UploadedFile() file?: UploadedMulterFile) {
+    if (!file) {
+      throw new BadRequestException('File gambar wajib diisi');
+    }
+    return this.menuService.saveImage(id, file);
   }
 }

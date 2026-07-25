@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { CATEGORIES, Category, MenuItem, MenuItemInput } from '@/lib/api';
+import { useEffect, useRef, useState } from 'react';
+import { CATEGORIES, Category, MenuItem, MenuItemInput, uploadMenuImage } from '@/lib/api';
 import { Select } from './Select';
 
 interface MenuItemFormProps {
@@ -19,43 +19,106 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'atribut', label: 'Atribut & Meter' },
 ];
 
-// Preview gambar produk. Gambar TIDAK di-upload lewat form ini — file-nya
-// tetap manual ditaruh di apps/kiosk/public/images/{id}.png. Komponen ini
-// cuma menunjukkan apakah file itu sudah ada di apps/kiosk (dilihat lewat
-// NEXT_PUBLIC_KIOSK_BASE_URL), supaya admin tahu perlu upload atau tidak.
+// BARU — id unik per baris, stabil sepanjang hidup baris itu (tidak berubah
+// walau baris lain ditambah/dihapus/direorder). Dipakai sebagai React key di
+// PairListEditor supaya tidak salah mengenali baris berdasarkan posisi index,
+// yang sebelumnya menyebabkan value antar baris saling timpa.
+function makeKey(): string {
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2);
+}
+
+type AttributeRow = { _key: string; label: string; value: string };
+type MeterRow = { _key: string; label: string; value: number };
+
+// Gambar sekarang bisa di-upload langsung lewat tombol di bawah — ditulis
+// apps/api langsung ke apps/kiosk/public/images/{id}.png. Preview di-refresh
+// pakai query param cache-busting (?v=) supaya langsung update tanpa perlu
+// hard refresh browser.
 function ImagePreview({ id }: { id: string }) {
   const [failed, setFailed] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [cacheBust, setCacheBust] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setFailed(false);
+    setUploadError(null);
   }, [id]);
 
   const kioskBaseUrl = process.env.NEXT_PUBLIC_KIOSK_BASE_URL ?? 'http://localhost:3000';
-  const src = `${kioskBaseUrl}/images/${id}.png`;
+  const src = `${kioskBaseUrl}/images/${id}.png?v=${cacheBust}`;
 
-  if (!id || failed) {
-    return (
-      <div className="flex h-40 w-40 shrink-0 flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-latte/20 bg-cream/40 p-3 text-center">
-        <span className="text-xs font-medium text-ink/50">
-          {!id ? 'Isi Id dulu' : 'Gambar belum ada'}
-        </span>
-        {id && (
-          <span className="text-[10px] leading-tight text-ink/30">
-            taruh file di public/images/{id}.png
-          </span>
-        )}
-      </div>
-    );
-  }
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // reset supaya bisa pilih file yang sama lagi kalau perlu
+
+    if (!file || !id) return;
+
+    if (file.type !== 'image/png') {
+      setUploadError('File harus format PNG (.png)');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setUploadError('Ukuran file maksimal 2MB');
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadError(null);
+    try {
+      await uploadMenuImage(id, file);
+      setFailed(false);
+      setCacheBust((v) => v + 1); // paksa <img> reload, bukan pakai cache lama
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Gagal upload gambar');
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={src}
-      alt="Preview menu"
-      onError={() => setFailed(true)}
-      className="h-40 w-40 shrink-0 rounded-2xl object-cover"
-    />
+    <div className="flex shrink-0 flex-col items-center gap-2">
+      {!id || failed ? (
+        <div className="flex h-40 w-40 shrink-0 flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-latte/20 bg-cream/40 p-3 text-center">
+          <span className="text-xs font-medium text-ink/50">
+            {!id ? 'Isi Id dulu' : 'Gambar belum ada'}
+          </span>
+        </div>
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt="Preview menu"
+          onError={() => setFailed(true)}
+          className="h-40 w-40 shrink-0 rounded-2xl object-cover"
+        />
+      )}
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/png"
+        onChange={handleFileSelect}
+        className="hidden"
+      />
+      <button
+        type="button"
+        disabled={!id || isUploading}
+        onClick={() => fileInputRef.current?.click()}
+        className="rounded-full bg-latte px-4 py-1.5 text-xs font-semibold text-cream disabled:opacity-40"
+      >
+        {isUploading ? 'Mengunggah...' : 'Upload Gambar'}
+      </button>
+
+      {uploadError && (
+        <p className="max-w-[160px] text-center text-[11px] font-medium text-red-500">
+          {uploadError}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -71,7 +134,7 @@ function TextListEditor({
   placeholder: string;
 }) {
   return (
-    <div>
+    <div className="min-w-0">
       <div className="mb-2 flex items-center justify-between">
         <label className="text-sm font-bold text-ink">{label}</label>
         <button
@@ -84,7 +147,7 @@ function TextListEditor({
       </div>
       <div className="space-y-2">
         {values.map((value, index) => (
-          <div key={index} className="flex gap-2">
+          <div key={index} className="flex min-w-0 gap-2">
             <input
               value={value}
               placeholder={placeholder}
@@ -93,12 +156,12 @@ function TextListEditor({
                 next[index] = e.target.value;
                 onChange(next);
               }}
-              className="flex-1 rounded-xl bg-cream px-4 py-2 text-sm text-ink outline-none"
+              className="min-w-0 flex-1 rounded-xl bg-cream px-4 py-2 text-sm text-ink outline-none"
             />
             <button
               type="button"
               onClick={() => onChange(values.filter((_, i) => i !== index))}
-              className="rounded-xl px-3 text-sm font-semibold text-red-500"
+              className="shrink-0 rounded-xl px-3 text-sm font-semibold text-red-500"
             >
               Hapus
             </button>
@@ -110,7 +173,7 @@ function TextListEditor({
   );
 }
 
-function PairListEditor<T extends { label: string; value: string | number }>({
+function PairListEditor<T extends { _key: string; label: string; value: string | number }>({
   title,
   values,
   onChange,
@@ -122,13 +185,16 @@ function PairListEditor<T extends { label: string; value: string | number }>({
   valueType: 'text' | 'number';
 }) {
   return (
-    <div>
+    <div className="min-w-0">
       <div className="mb-2 flex items-center justify-between">
         <label className="text-sm font-bold text-ink">{title}</label>
         <button
           type="button"
           onClick={() =>
-            onChange([...values, { label: '', value: valueType === 'number' ? 1 : '' } as T])
+            onChange([
+              ...values,
+              { _key: makeKey(), label: '', value: valueType === 'number' ? 1 : '' } as T,
+            ])
           }
           className="text-xs font-semibold text-latte"
         >
@@ -137,7 +203,7 @@ function PairListEditor<T extends { label: string; value: string | number }>({
       </div>
       <div className="space-y-2">
         {values.map((pair, index) => (
-          <div key={index} className="flex gap-2">
+          <div key={pair._key} className="flex min-w-0 gap-2">
             <input
               value={pair.label}
               placeholder="Label"
@@ -146,7 +212,7 @@ function PairListEditor<T extends { label: string; value: string | number }>({
                 next[index] = { ...next[index], label: e.target.value };
                 onChange(next);
               }}
-              className="flex-1 rounded-xl bg-cream px-4 py-2 text-sm text-ink outline-none"
+              className="min-w-0 flex-1 rounded-xl bg-cream px-4 py-2 text-sm text-ink outline-none"
             />
             {valueType === 'number' ? (
               <input
@@ -159,7 +225,7 @@ function PairListEditor<T extends { label: string; value: string | number }>({
                   next[index] = { ...next[index], value: Number(e.target.value) };
                   onChange(next);
                 }}
-                className="w-20 rounded-xl bg-cream px-3 py-2 text-sm text-ink outline-none"
+                className="w-16 shrink-0 rounded-xl bg-cream px-3 py-2 text-sm text-ink outline-none"
               />
             ) : (
               <input
@@ -170,13 +236,13 @@ function PairListEditor<T extends { label: string; value: string | number }>({
                   next[index] = { ...next[index], value: e.target.value };
                   onChange(next);
                 }}
-                className="flex-1 rounded-xl bg-cream px-4 py-2 text-sm text-ink outline-none"
+                className="min-w-0 flex-1 rounded-xl bg-cream px-4 py-2 text-sm text-ink outline-none"
               />
             )}
             <button
               type="button"
               onClick={() => onChange(values.filter((_, i) => i !== index))}
-              className="rounded-xl px-3 text-sm font-semibold text-red-500"
+              className="shrink-0 rounded-xl px-3 text-sm font-semibold text-red-500"
             >
               Hapus
             </button>
@@ -197,8 +263,12 @@ export function MenuItemForm({ title, initial, onSubmit, onCancel }: MenuItemFor
   const [description, setDescription] = useState(initial?.description ?? '');
   const [composition, setComposition] = useState<string[]>(initial?.composition ?? []);
   const [servingDetails, setServingDetails] = useState<string[]>(initial?.servingDetails ?? []);
-  const [attributes, setAttributes] = useState(initial?.attributes ?? []);
-  const [meters, setMeters] = useState(initial?.meters ?? []);
+  const [attributes, setAttributes] = useState<AttributeRow[]>(() =>
+    (initial?.attributes ?? []).map((a) => ({ ...a, _key: makeKey() })),
+  );
+  const [meters, setMeters] = useState<MeterRow[]>(() =>
+    (initial?.meters ?? []).map((m) => ({ ...m, _key: makeKey() })),
+  );
   const [price, setPrice] = useState(initial?.price ?? 0);
   const [availability, setAvailability] = useState(initial?.availability ?? 'Available all day');
   const [imageAlt, setImageAlt] = useState(initial?.imageAlt ?? '');
@@ -224,8 +294,8 @@ export function MenuItemForm({ title, initial, onSubmit, onCancel }: MenuItemFor
         description,
         composition,
         servingDetails,
-        attributes,
-        meters,
+        attributes: attributes.map(({ _key, ...rest }) => rest),
+        meters: meters.map(({ _key, ...rest }) => rest),
         price,
         availability,
         imageAlt,

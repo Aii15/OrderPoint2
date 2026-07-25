@@ -215,3 +215,23 @@ export async function deleteStaff(id: string): Promise<void> {
   });
   if (!response.ok) throw new Error('Gagal menghapus staf');
 }
+
+// BARU — upload gambar menu. authHeaders() saja, JANGAN set 'Content-Type'
+// manual: browser yang harus isi otomatis dengan boundary multipart yang
+// benar kalau body-nya FormData.
+export async function uploadMenuImage(id: string, file: File): Promise<{ path: string }> {
+  const formData = new FormData();
+  formData.append('image', file);
+
+  const response = await fetch(`${API_BASE_URL}/api/menu/${id}/image`, {
+    method: 'POST',
+    headers: { ...authHeaders() },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.message ?? 'Gagal upload gambar');
+  }
+  return response.json();
+}
