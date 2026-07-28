@@ -1,14 +1,15 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
+
+const PIN_SALT_ROUNDS = 10;
 
 @Injectable()
 export class StaffService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // PUBLIK — dipakai halaman login apps/cashier untuk isi dropdown nama staf.
-  // Sengaja TIDAK menyertakan field `pin`.
   findActive() {
     return this.prisma.staff.findMany({
       where: { active: true },
@@ -17,8 +18,6 @@ export class StaffService {
     });
   }
 
-  // TERPROTEKSI — dipakai apps/admin, termasuk staf nonaktif supaya bisa
-  // diaktifkan lagi. Tetap tanpa field `pin` di response.
   findAll() {
     return this.prisma.staff.findMany({
       select: { id: true, name: true, active: true, createdAt: true },
@@ -31,7 +30,8 @@ export class StaffService {
     if (existing) {
       throw new ConflictException(`Staf dengan nama "${dto.name}" sudah ada`);
     }
-    const staff = await this.prisma.staff.create({ data: { name: dto.name, pin: dto.pin } });
+    const hashedPin = await bcrypt.hash(dto.pin, PIN_SALT_ROUNDS);
+    const staff = await this.prisma.staff.create({ data: { name: dto.name, pin: hashedPin } });
     const { pin, ...safe } = staff;
     return safe;
   }
@@ -45,14 +45,18 @@ export class StaffService {
       if (conflict) throw new ConflictException(`Staf dengan nama "${dto.name}" sudah ada`);
     }
 
-    const staff = await this.prisma.staff.update({ where: { id }, data: dto });
+    // BARU — kalau PIN diubah, hash dulu sebelum disimpan. Field lain (name,
+    // active) lewat apa adanya.
+    const data = { ...dto };
+    if (dto.pin) {
+      data.pin = await bcrypt.hash(dto.pin, PIN_SALT_ROUNDS);
+    }
+
+    const staff = await this.prisma.staff.update({ where: { id }, data });
     const { pin, ...safe } = staff;
     return safe;
   }
 
-  // Aman secara database — Staff.id cuma disimpan sebagai SNAPSHOT string di
-  // Order.servedByStaffId (bukan foreign key), jadi hapus staf tidak pernah
-  // merusak riwayat order lama. Sama seperti prinsip MenuItem di Bagian 7.
   async remove(id: string) {
     const existing = await this.prisma.staff.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Staf tidak ditemukan');

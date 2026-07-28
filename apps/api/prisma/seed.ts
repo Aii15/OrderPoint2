@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
@@ -205,9 +206,11 @@ const MENU_SEED = [
   },
 ];
 
-// BARU — akun staf kasir contoh, aman dijalankan ulang (idempotent, upsert
-// by name). Ganti nama/PIN ini sesuai kebutuhan, atau tambah staf baru lewat
-// apps/admin → Staf setelah login pertama kali.
+// Akun staf kasir contoh, aman dijalankan ulang (idempotent, upsert by name).
+// Ganti nama/PIN ini sesuai kebutuhan, atau tambah staf baru lewat
+// apps/admin → Staf setelah login pertama kali. PIN di-hash sebelum ditulis
+// ke database (lihat main() di bawah) — nilai di sini tetap plaintext hanya
+// sebagai sumber input seed, bukan yang benar-benar disimpan.
 const STAFF_SEED = [
   { name: 'Budi', pin: '1111' },
   { name: 'Sari', pin: '2222' },
@@ -222,12 +225,16 @@ async function main() {
     });
   }
 
-  // BARU — seed akun staf kasir contoh
+  // BARU — PIN di-hash pakai bcrypt sebelum di-upsert, konsisten dengan
+  // StaffService.create/update yang juga hash PIN. Kalau seed ini dijalankan
+  // ulang di database yang sudah punya Budi/Sari dengan PIN plaintext lama,
+  // baris `update: { pin: hashedPin }` otomatis menggantinya jadi hash.
   for (const staff of STAFF_SEED) {
+    const hashedPin = await bcrypt.hash(staff.pin, 10);
     await prisma.staff.upsert({
       where: { name: staff.name },
-      update: { pin: staff.pin },
-      create: staff,
+      update: { pin: hashedPin },
+      create: { name: staff.name, pin: hashedPin },
     });
   }
 

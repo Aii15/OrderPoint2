@@ -1,0 +1,50 @@
+@import url('https://fonts.googleapis.com/css2?family=VT323&family=Barlow+Condensed:wght@600;700&display=swap');
+@import 'tailwindcss';
+
+@theme {
+  --color-board: #08090a;
+  --color-signal: #ffab1f;
+  --color-signal-dim: #8a5a12;
+  --color-seam: #2a2b2d;
+  --color-paper: #f5f3ef;
+}
+
+html,
+body {
+  font-family: 'Barlow Condensed', system-ui, sans-serif;
+  cursor: none;
+  overflow: hidden;
+  height: 100%;
+}
+
+.font-led {
+  font-family: 'VT323', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Signature motion: nomor baru menyala seperti lampu LED/dot-matrix
+   dinyalakan pertama kali, berkedip sesaat lalu stabil. */
+@keyframes led-ignite {
+  0% {
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  30% {
+    opacity: 0.15;
+  }
+  45% {
+    opacity: 1;
+  }
+  60% {
+    opacity: 0.3;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.animate-led-ignite {
+  animation: led-ignite 0.6s steps(1, end);
+}

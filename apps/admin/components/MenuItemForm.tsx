@@ -29,6 +29,7 @@ function makeKey(): string {
     : Math.random().toString(36).slice(2);
 }
 
+type TextRow = { _key: string; value: string };
 type AttributeRow = { _key: string; label: string; value: string };
 type MeterRow = { _key: string; label: string; value: number };
 
@@ -129,8 +130,8 @@ function TextListEditor({
   placeholder,
 }: {
   label: string;
-  values: string[];
-  onChange: (next: string[]) => void;
+  values: TextRow[];
+  onChange: (next: TextRow[]) => void;
   placeholder: string;
 }) {
   return (
@@ -139,21 +140,21 @@ function TextListEditor({
         <label className="text-sm font-bold text-ink">{label}</label>
         <button
           type="button"
-          onClick={() => onChange([...values, ''])}
+          onClick={() => onChange([...values, { _key: makeKey(), value: '' }])}
           className="text-xs font-semibold text-latte"
         >
           + Tambah
         </button>
       </div>
       <div className="space-y-2">
-        {values.map((value, index) => (
-          <div key={index} className="flex min-w-0 gap-2">
+        {values.map((row, index) => (
+          <div key={row._key} className="flex min-w-0 gap-2">
             <input
-              value={value}
+              value={row.value}
               placeholder={placeholder}
               onChange={(e) => {
                 const next = [...values];
-                next[index] = e.target.value;
+                next[index] = { ...next[index], value: e.target.value };
                 onChange(next);
               }}
               className="min-w-0 flex-1 rounded-xl bg-cream px-4 py-2 text-sm text-ink outline-none"
@@ -261,8 +262,12 @@ export function MenuItemForm({ title, initial, onSubmit, onCancel }: MenuItemFor
   const [category, setCategory] = useState<Category>((initial?.category as Category) ?? CATEGORIES[0]);
   const [name, setName] = useState(initial?.name ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
-  const [composition, setComposition] = useState<string[]>(initial?.composition ?? []);
-  const [servingDetails, setServingDetails] = useState<string[]>(initial?.servingDetails ?? []);
+  const [composition, setComposition] = useState<TextRow[]>(() =>
+  (initial?.composition ?? []).map((v) => ({ _key: makeKey(), value: v })),
+  );
+  const [servingDetails, setServingDetails] = useState<TextRow[]>(() =>
+  (initial?.servingDetails ?? []).map((v) => ({ _key: makeKey(), value: v })),
+  );
   const [attributes, setAttributes] = useState<AttributeRow[]>(() =>
     (initial?.attributes ?? []).map((a) => ({ ...a, _key: makeKey() })),
   );
@@ -292,8 +297,8 @@ export function MenuItemForm({ title, initial, onSubmit, onCancel }: MenuItemFor
         category,
         name,
         description,
-        composition,
-        servingDetails,
+        composition: composition.map((r) => r.value),
+        servingDetails: servingDetails.map((r) => r.value),
         attributes: attributes.map(({ _key, ...rest }) => rest),
         meters: meters.map(({ _key, ...rest }) => rest),
         price,
